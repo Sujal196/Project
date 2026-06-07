@@ -7,17 +7,30 @@ import os
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 
+# ---------------------------------------------------------------
+# Resolve model paths relative to this file's location.
+# This is critical for Vercel — it runs from a different working
+# directory than local, so relative paths like 'model.joblib'
+# would fail. Using __file__ guarantees correct resolution.
+# ---------------------------------------------------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def model_path(filename):
+    return os.path.join(BASE_DIR, filename)
+
 # Ensure models exist before starting
-models_exist = all(os.path.exists(f) for f in ['model.joblib', 'scaler.joblib', 'recommender.joblib', 'clusters.joblib', 'metadata.joblib'])
+model_files = ['model.joblib', 'scaler.joblib', 'recommender.joblib', 'clusters.joblib', 'metadata.joblib']
+models_exist = all(os.path.exists(model_path(f)) for f in model_files)
 if not models_exist:
-    raise RuntimeError("Serialized model files not found! Please run 'python serialize_models.py' first.")
+    missing = [f for f in model_files if not os.path.exists(model_path(f))]
+    raise RuntimeError(f"Serialized model files not found: {missing}. Run 'python serialize_models.py' first.")
 
 print("Loading serialized machine learning models...")
-model = joblib.load('model.joblib')
-scaler = joblib.load('scaler.joblib')
-recommender_data = joblib.load('recommender.joblib')
-clusters_data = joblib.load('clusters.joblib')
-metadata = joblib.load('metadata.joblib')
+model = joblib.load(model_path('model.joblib'))
+scaler = joblib.load(model_path('scaler.joblib'))
+recommender_data = joblib.load(model_path('recommender.joblib'))
+clusters_data = joblib.load(model_path('clusters.joblib'))
+metadata = joblib.load(model_path('metadata.joblib'))
 
 # Extract assets
 rec_df = recommender_data['rec_df']
@@ -48,7 +61,7 @@ def predict():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No input data provided'}), 400
-        
+
         # Extract fields
         average_cost = float(data.get('average_cost', 0))
         price_range = int(data.get('price_range', 1))
@@ -57,29 +70,21 @@ def predict():
         online_delivery = int(data.get('online_delivery', 0))
         delivering_now = int(data.get('delivering_now', 0))
         selected_cuisines = data.get('cuisines', [])
-        
+
         # Prepare numeric array (6 features)
         numeric_vals = np.array([[average_cost, price_range, votes, table_booking, online_delivery, delivering_now]])
         # Scale numeric features
         numeric_scaled = scaler.transform(numeric_vals)[0]
-        
+
         # Prepare cuisine binary array (30 features)
-        cuisine_vals = []
-        for cuisine in top_30_cuisines:
-            cuisine_vals.append(1 if cuisine in selected_cuisines else 0)
-        
-        # Combine numerical scaled features with binary cuisine features
+        cuisine_vals = [1 if cuisine in selected_cuisines else 0 for cuisine in top_30_cuisines]
+
+        # Combine & predict
         features_vector = np.concatenate([numeric_scaled, cuisine_vals]).reshape(1, -1)
-        
-        # Run prediction
         predicted_rating = float(model.predict(features_vector)[0])
-        # Clip to valid range
         predicted_rating = max(0.0, min(5.0, round(predicted_rating, 2)))
-        
-        return jsonify({
-            'rating': predicted_rating,
-            'success': True
-        })
+
+        return jsonify({'rating': predicted_rating, 'success': True})
     except Exception as e:
         return jsonify({'error': str(e), 'success': False}), 500
 
@@ -89,14 +94,13 @@ def recommend():
         name = request.args.get('name', '').strip()
         if not name:
             return jsonify({'error': 'Restaurant name is required'}), 400
-        
-        # Create case-insensitive search mapping
+
+        # Case-insensitive index lookup
         indices = pd.Series(rec_df.index, index=rec_df['Restaurant Name'].str.lower()).drop_duplicates()
         name_lower = name.lower()
-        
+
         if name_lower not in indices:
-            # Try fuzzy matching (substring matching)
-            matches = rec_df[rec_df['Restaurant Name'].str.lower().str.contains(name_lower)]
+            matches = rec_df[rec_df['Restaurant Name'].str.lower().str.contains(name_lower, na=False)]
             if matches.empty:
                 return jsonify({'error': f"Restaurant '{name}' not found."}), 404
             idx = matches.index[0]
@@ -104,17 +108,12 @@ def recommend():
             idx = indices[name_lower]
             if isinstance(idx, pd.Series):
                 idx = idx.iloc[0]
-        
-        # Compute cosine similarity
+
+        # Cosine similarity
         sim_array = cosine_similarity(tfidf_matrix[idx], tfidf_matrix)[0]
-        sim_scores = list(enumerate(sim_array))
-        
-        # Sort restaurants by similarity
-        sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-        
-        # Get top 5 excluding itself
+        sim_scores = sorted(enumerate(sim_array), key=lambda x: x[1], reverse=True)
         sim_scores = [item for item in sim_scores if item[0] != idx][:5]
-        
+
         recommendations = []
         for index, score in sim_scores:
             row = rec_df.iloc[index]
@@ -126,7 +125,7 @@ def recommend():
                 'city': row['City'],
                 'similarity': float(round(score, 4))
             })
-            
+
         return jsonify({
             'query_restaurant': rec_df.iloc[idx]['Restaurant Name'],
             'recommendations': recommendations,
@@ -138,17 +137,17 @@ def recommend():
 @app.route('/api/clusters', methods=['GET'])
 def get_clusters():
     try:
-        # Convert map_df to JSON serializable list of dicts
-        # Limit records to top 1500 to keep responses snappy (Map can cluster them)
         limited_df = map_df.sample(n=min(1500, len(map_df)), random_state=42)
         records = limited_df.to_dict(orient='records')
-        return jsonify({
-            'restaurants': records,
-            'success': True
-        })
+        return jsonify({'restaurants': records, 'success': True})
     except Exception as e:
         return jsonify({'error': str(e), 'success': False}), 500
 
+# ---------------------------------------------------------------
+# Local development entry point.
+# Vercel does NOT call app.run() — it imports the `app` object
+# directly as a WSGI callable. debug=False for production safety.
+# ---------------------------------------------------------------
 if __name__ == '__main__':
-    print("Starting DineWise Web Application on http://127.0.0.1:5000")
-    app.run(debug=True, port=5000)
+    print("Starting DineWise locally on http://127.0.0.1:5000")
+    app.run(debug=False, port=5000)

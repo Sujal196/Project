@@ -1,0 +1,18 @@
+# Exclude large/unnecessary files from Vercel deployment
+
+# Raw data
+Dataset.csv
+
+# Jupyter Notebooks (not needed in production)
+*.ipynb
+
+# Training script (models are pre-serialized)
+serialize_models.py
+
+# Git history (not needed by Vercel)
+.git/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
