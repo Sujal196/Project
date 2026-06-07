@@ -1,0 +1,1297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DineWise Partner Portal: B2B Restaurant Analytics</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Leaflet.js Map CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        :root {
+            --bg-color: #0b0d17;
+            --panel-bg: rgba(20, 24, 39, 0.7);
+            --panel-border: rgba(255, 255, 255, 0.08);
+            --text-main: #f9fafb;
+            --text-muted: #9ca3af;
+            
+            --primary-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+            --accent-glow: rgba(79, 70, 229, 0.15);
+            
+            --color-rating-high: #10b981;
+            --color-rating-mid: #f59e0b;
+            --color-rating-low: #ef4444;
+            
+            --transition-smooth: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(79, 70, 229, 0.1) 0px, transparent 40%),
+                radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.1) 0px, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Nav & Brand Header */
+        .app-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.25rem 2.5rem;
+            background: rgba(11, 13, 23, 0.8);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--panel-border);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .brand-logo {
+            width: 32px;
+            height: 32px;
+            background: var(--primary-gradient);
+            border-radius: 8px;
+            box-shadow: 0 0 15px rgba(79, 70, 229, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+        }
+
+        .brand-text h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .brand-text span {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            font-weight: 600;
+        }
+
+        /* Tabs Navigation */
+        .tabs {
+            display: flex;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--panel-border);
+            padding: 0.35rem;
+            border-radius: 10px;
+            gap: 0.25rem;
+        }
+
+        .tab-btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 0.6rem 1.2rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            border-radius: 7px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab-btn.active {
+            color: white;
+            background: var(--primary-gradient);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.25);
+        }
+
+        /* Container Main */
+        main {
+            flex-grow: 1;
+            padding: 2.5rem;
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        .tab-content.active {
+            display: grid;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Layout Grids */
+        .simulator-layout {
+            grid-template-columns: 1fr 1fr;
+            gap: 2.5rem;
+        }
+
+        .recommender-layout {
+            grid-template-columns: 0.9fr 1.1fr;
+            gap: 2.5rem;
+        }
+
+        .map-layout {
+            grid-template-columns: 1.3fr 0.7fr;
+            gap: 2.5rem;
+        }
+
+        @media (max-width: 960px) {
+            .simulator-layout, .recommender-layout, .map-layout {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* UI Panels */
+        .panel {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            border-radius: 18px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel-heading {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 1rem;
+        }
+
+        .panel-heading h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .panel-heading p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Form Inputs */
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        input[type="number"], select {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.8rem 1rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        input[type="number"]:focus, select:focus {
+            border-color: #4f46e5;
+            background: rgba(255, 255, 255, 0.06);
+            box-shadow: 0 0 12px rgba(79, 70, 229, 0.25);
+        }
+
+        /* Sliders */
+        .slider-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 1.25rem;
+        }
+
+        input[type="range"] {
+            flex-grow: 1;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #7c3aed;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.15);
+            background: #4f46e5;
+        }
+
+        .slider-badge {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        /* Toggle Button Cards */
+        .toggle-row {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+
+        .toggle-btn {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--panel-border);
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            text-align: center;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            transition: var(--transition-smooth);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+        }
+
+        .toggle-btn:hover {
+            border-color: rgba(79, 70, 229, 0.4);
+            color: var(--text-main);
+        }
+
+        .toggle-btn.active {
+            background: rgba(79, 70, 229, 0.08);
+            border-color: #4f46e5;
+            color: white;
+            box-shadow: 0 0 12px rgba(79, 70, 229, 0.15);
+        }
+
+        /* Search Autocomplete styling */
+        .autocomplete-container {
+            position: relative;
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.9rem 1.2rem;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            outline: none;
+            transition: var(--transition-smooth);
+        }
+
+        .search-input:focus {
+            border-color: #4f46e5;
+            background: rgba(255, 255, 255, 0.06);
+        }
+
+        .suggestions-box {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 100%;
+            background: #11131e;
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            margin-top: 0.5rem;
+            z-index: 100;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .suggestion-row {
+            padding: 0.8rem 1.2rem;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .suggestion-row:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: #7c3aed;
+        }
+
+        /* Cuisine Pills select */
+        .selected-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .pill {
+            background: rgba(124, 58, 237, 0.15);
+            color: #d8b4fe;
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            border-radius: 6px;
+            padding: 0.35rem 0.65rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .pill-remove {
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        .pill-remove:hover {
+            color: var(--color-rating-low);
+        }
+
+        /* Simulator Results Dashboard */
+        .report-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--panel-border);
+            border-radius: 16px;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            align-items: center;
+        }
+
+        .gauge-container {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(20, 24, 39, 1) 0%, rgba(11, 13, 23, 0.2) 100%);
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+            border: 4px solid var(--panel-border);
+        }
+
+        .gauge-score {
+            font-size: 3rem;
+            font-weight: 800;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gauge-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+        }
+
+        .rating-stars {
+            font-size: 1.15rem;
+            color: #f59e0b;
+        }
+
+        .report-insights {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .insight-heading {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 700;
+            margin-bottom: 0.25rem;
+        }
+
+        .insight-card {
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--panel-border);
+            border-radius: 10px;
+            padding: 0.9rem 1.2rem;
+            font-size: 0.9rem;
+            line-height: 1.4;
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+
+        .insight-card.alert {
+            border-left: 3px solid var(--color-rating-mid);
+        }
+
+        .insight-card.info {
+            border-left: 3px solid #6366f1;
+        }
+
+        .insight-card.tip {
+            border-left: 3px solid var(--color-rating-high);
+        }
+
+        /* Competitor Card Lists */
+        .competitor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .competitor-card {
+            background: rgba(255, 255, 255, 0.015);
+            border: 1px solid var(--panel-border);
+            border-radius: 14px;
+            padding: 1.25rem;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1.5rem;
+            transition: var(--transition-smooth);
+        }
+
+        .competitor-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(124, 58, 237, 0.3);
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .comp-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .comp-cuisines {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin: 0.25rem 0 0.5rem;
+        }
+
+        .comp-badges {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.04);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .comp-stats {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            justify-content: space-between;
+        }
+
+        .comp-rating {
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--color-rating-high);
+            padding: 0.25rem 0.5rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+
+        .comp-rating.mid {
+            background: rgba(245, 158, 11, 0.12);
+            color: var(--color-rating-mid);
+        }
+
+        .comp-match {
+            font-size: 0.8rem;
+            color: #a855f7;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        /* Map styling */
+        #map {
+            height: 520px;
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid var(--panel-border);
+            z-index: 1;
+        }
+
+        .cluster-guide {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .cluster-guide h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .cluster-row {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+            padding: 0.8rem;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+        }
+
+        .cluster-row:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: var(--panel-border);
+        }
+
+        .cluster-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-top: 0.25rem;
+            flex-shrink: 0;
+        }
+
+        .cluster-info h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+
+        .cluster-info p {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.15rem;
+        }
+
+        .simulate-btn {
+            background: var(--primary-gradient);
+            border: none;
+            color: white;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.9rem 1.5rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: var(--transition-smooth);
+            width: 100%;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.2);
+        }
+
+        .simulate-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.35);
+        }
+
+        .pulse-text {
+            animation: pulse-op 1.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse-op {
+            0% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- App navigation bar -->
+    <div class="app-bar">
+        <div class="brand">
+            <div class="brand-logo">D</div>
+            <div class="brand-text">
+                <h1>DineWise</h1>
+                <span>Partner Portal</span>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('simulator')">📊 Success Simulator</button>
+            <button class="tab-btn" onclick="switchTab('recommender')">🔍 Competitor Analysis</button>
+            <button class="tab-btn" onclick="switchTab('mapper')">🗺️ Market Mapping</button>
+        </div>
+        
+        <div class="brand-text" style="text-align: right;">
+            <h1 style="font-size: 1rem; color: var(--color-rating-high);">Active</h1>
+            <span style="font-size: 0.7rem;">ML Engine: Gradient Boosting</span>
+        </div>
+    </div>
+
+    <main>
+        
+        <!-- Tab 1: Simulator -->
+        <div class="tab-content active simulator-layout" id="tab-simulator">
+            <div class="panel">
+                <div class="panel-heading">
+                    <h2>Concept Simulator</h2>
+                    <p>Configure your restaurant parameters to predict aggregate consumer rating success.</p>
+                </div>
+                
+                <div class="form-group">
+                    <label>Marketing Reach (Customer Votes)</label>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.25rem;">Simulates how popular or reviewed your restaurant will be.</p>
+                    <div class="slider-wrapper">
+                        <input type="range" id="votes" min="0" max="3000" value="180" step="5" onchange="runSimulation()">
+                        <div class="slider-badge" id="votes-val">180</div>
+                    </div>
+                </div>
+                
+                <div class="input-row">
+                    <div class="form-group">
+                        <label>Avg Cost for Two (INR)</label>
+                        <input type="number" id="cost" value="600" min="0" max="10000" onchange="runSimulation()">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Pricing Range Tier</label>
+                        <select id="price-range" onchange="runSimulation()">
+                            <option value="1">Tier 1: Budget Eats</option>
+                            <option value="2" selected>Tier 2: Mid-Range Dining</option>
+                            <option value="3">Tier 3: Premium Premium</option>
+                            <option value="4">Tier 4: Ultra Luxury</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Merchant Conveniences Offered</label>
+                    <div class="toggle-row">
+                        <div class="toggle-btn" id="table-booking" onclick="toggleOption('table-booking')">
+                            <span>Table Bookings</span>
+                        </div>
+                        <div class="toggle-btn" id="online-delivery" onclick="toggleOption('online-delivery')">
+                            <span>Online Delivery</span>
+                        </div>
+                        <div class="toggle-btn" id="delivering-now" onclick="toggleOption('delivering-now')">
+                            <span>Delivering Now</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-group autocomplete-container">
+                    <label>Menu & Cuisine Composition</label>
+                    <input type="text" class="search-input" id="cuisine-search" placeholder="Type to add cuisines (e.g. Italian, Cafe, North Indian)..." onfocus="showCuisineSuggestions()" oninput="filterCuisinesList()">
+                    <div class="suggestions-box" id="cuisine-dropdown"></div>
+                    <div class="selected-pills" id="selected-pills"></div>
+                </div>
+                
+                <button class="simulate-btn" onclick="runSimulation()">Run ML Simulation</button>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-heading">
+                    <h2>AI Success Scorecard</h2>
+                    <p>Machine learning predictions and B2B merchant optimization strategies.</p>
+                </div>
+                
+                <div class="report-card">
+                    <div class="gauge-container">
+                        <div class="gauge-score" id="pred-score">--</div>
+                        <div class="gauge-label" id="pred-label">No concept</div>
+                    </div>
+                    
+                    <div class="rating-stars" id="pred-stars">☆☆☆☆☆</div>
+                    
+                    <div class="report-insights">
+                        <div class="insight-heading">AI Business Recommendations</div>
+                        <div id="insights-container">
+                            <div class="insight-card info">
+                                <span>💡</span>
+                                <div>Select your cuisines and configure options to receive custom menu optimizations.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 2: Recommender -->
+        <div class="tab-content recommender-layout" id="tab-recommender">
+            <div class="panel">
+                <div class="panel-heading">
+                    <h2>Competitor Profiler</h2>
+                    <p>Identify direct culinary competitors based on menu structures and location context.</p>
+                </div>
+                
+                <div class="form-group autocomplete-container">
+                    <label>Enter Benchmark Restaurant Name</label>
+                    <input type="text" class="search-input" id="restaurant-search" placeholder="Type name (e.g., Subway, Cafe Coffee Day, Le Petit Souffle)..." oninput="filterRestaurantsList()">
+                    <div class="suggestions-box" id="restaurant-suggestions"></div>
+                </div>
+                
+                <div class="report-card" style="align-items: flex-start; gap: 1rem;" id="query-summary">
+                    <div class="comp-title" id="query-title" style="font-size: 1.3rem;">Search Competitors</div>
+                    <p style="font-size: 0.9rem; color: var(--text-muted);" id="query-desc">Select a restaurant above to map matching competitors.</p>
+                </div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-heading">
+                    <h2>Direct Market Competitors</h2>
+                    <p>Identified direct food profile matches sorted by menu cosine similarity.</p>
+                </div>
+                
+                <div class="competitor-list" id="recommendations-container">
+                    <div style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                        No benchmark selected. Choose a restaurant to compare.
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Tab 3: Market Mapper -->
+        <div class="tab-content map-layout" id="tab-mapper">
+            <div class="panel" style="padding: 1rem; overflow: hidden;">
+                <div id="map"></div>
+            </div>
+            
+            <div class="panel">
+                <div class="panel-heading">
+                    <h2>Market Segments Guide</h2>
+                    <p>New Delhi is divided into 5 distinct food hubs based on coordinate distributions.</p>
+                </div>
+                
+                <div class="cluster-guide">
+                    <div class="cluster-row" onclick="focusCluster(0)">
+                        <div class="cluster-dot" style="background-color: #e11d48;"></div>
+                        <div class="cluster-info">
+                            <h4>Cluster 0: Premium Centers</h4>
+                            <p>High-end hotspots (Avg Cost: ₹637). Dominated by premium restaurants with average ratings above 2.7.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cluster-row" onclick="focusCluster(1)">
+                        <div class="cluster-dot" style="background-color: #ea580c;"></div>
+                        <div class="cluster-info">
+                            <h4>Cluster 1: Outlier Zone</h4>
+                            <p>Isolated/unexplored locales. Ideal for carving out exclusive regional concepts.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cluster-row" onclick="focusCluster(2)">
+                        <div class="cluster-dot" style="background-color: #2563eb;"></div>
+                        <div class="cluster-info">
+                            <h4>Cluster 2: Commercial Core</h4>
+                            <p>Active business hubs (Avg Cost: ₹724, Rating: 2.67). Dense competition but massive foot traffic.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cluster-row" onclick="focusCluster(3)">
+                        <div class="cluster-dot" style="background-color: #16a34a;"></div>
+                        <div class="cluster-info">
+                            <h4>Cluster 3: Mid-Tier Suburbs</h4>
+                            <p>Residential suburbs (Avg Cost: ₹472). Focus on value-for-money, family packs, and deliveries.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="cluster-row" onclick="focusCluster(4)">
+                        <div class="cluster-dot" style="background-color: #7c3aed;"></div>
+                        <div class="cluster-info">
+                            <h4>Cluster 4: Local Budgets</h4>
+                            <p>Quick Service & stalls (Avg Cost: ₹416). Highly sensitive to pricing, rely on high volume.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Leaflet.js Map script -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <script>
+        // Global variables
+        let availableCuisines = [];
+        let availableRestaurants = [];
+        let selectedCuisines = [];
+        let optionStates = {
+            'table-booking': 0,
+            'online-delivery': 0,
+            'delivering-now': 0
+        };
+        let map = null;
+        let mapMarkers = [];
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Activate button & content
+            const clickedBtn = [...document.querySelectorAll('.tab-btn')].find(btn => btn.textContent.toLowerCase().includes(tabId));
+            if (clickedBtn) clickedBtn.classList.add('active');
+            
+            const content = document.getElementById(`tab-${tabId}`);
+            if (content) {
+                content.classList.add('active');
+                if (tabId === 'mapper' && map) {
+                    // Force leaflet map refresh when tab becomes visible
+                    setTimeout(() => map.invalidateSize(), 200);
+                }
+            }
+        }
+
+        // DOM Initializations
+        document.addEventListener('DOMContentLoaded', () => {
+            const votesSlider = document.getElementById('votes');
+            const votesVal = document.getElementById('votes-val');
+            votesSlider.addEventListener('input', (e) => {
+                votesVal.textContent = e.target.value;
+            });
+            
+            // Close dropdowns
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.cuisine-selector') && !e.target.closest('.autocomplete-container')) {
+                    document.getElementById('cuisine-dropdown').style.display = 'none';
+                }
+                if (!e.target.closest('.recommender-search') && !e.target.closest('.autocomplete-container')) {
+                    document.getElementById('restaurant-suggestions').style.display = 'none';
+                }
+            });
+            
+            loadMetadata();
+            initMap();
+        });
+
+        // Toggle cards
+        function toggleOption(id) {
+            const btn = document.getElementById(id);
+            optionStates[id] = optionStates[id] === 1 ? 0 : 1;
+            if (optionStates[id] === 1) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+            runSimulation(); // Re-run simulation dynamically
+        }
+
+        // Fetch Metadata
+        async function loadMetadata() {
+            try {
+                const response = await fetch('/api/metadata');
+                const data = await response.json();
+                
+                availableCuisines = data.cuisines;
+                availableRestaurants = data.restaurants;
+                
+                buildCuisinesList(availableCuisines);
+            } catch (err) {
+                console.error("Failed loading autocomplete data: ", err);
+            }
+        }
+
+        // Cuisine select dropdown
+        function buildCuisinesList(list) {
+            const dropdown = document.getElementById('cuisine-dropdown');
+            dropdown.innerHTML = '';
+            list.slice(0, 15).forEach(cuisine => {
+                const row = document.createElement('div');
+                row.className = 'suggestion-row';
+                row.textContent = cuisine;
+                row.onclick = () => addCuisinePill(cuisine);
+                dropdown.appendChild(row);
+            });
+        }
+
+        function showCuisineSuggestions() {
+            document.getElementById('cuisine-dropdown').style.display = 'block';
+            filterCuisinesList();
+        }
+
+        function filterCuisinesList() {
+            const val = document.getElementById('cuisine-search').value.toLowerCase();
+            const filtered = availableCuisines.filter(c => c.toLowerCase().includes(val) && !selectedCuisines.includes(c));
+            buildCuisinesList(filtered);
+        }
+
+        function addCuisinePill(cuisine) {
+            if (!selectedCuisines.includes(cuisine)) {
+                selectedCuisines.push(cuisine);
+                
+                const pillsBox = document.getElementById('selected-pills');
+                const pill = document.createElement('div');
+                pill.className = 'pill';
+                pill.id = `pill-${cuisine.replace(/\s+/g, '-')}`;
+                pill.innerHTML = `
+                    <span>${cuisine}</span>
+                    <span class="pill-remove" onclick="removeCuisinePill('${cuisine}')">&times;</span>
+                `;
+                pillsBox.appendChild(pill);
+                runSimulation();
+            }
+            
+            document.getElementById('cuisine-search').value = '';
+            document.getElementById('cuisine-dropdown').style.display = 'none';
+        }
+
+        function removeCuisinePill(cuisine) {
+            selectedCuisines = selectedCuisines.filter(c => c !== cuisine);
+            const pill = document.getElementById(`pill-${cuisine.replace(/\s+/g, '-')}`);
+            if (pill) pill.remove();
+            runSimulation();
+        }
+
+        // Restaurant autocomplete
+        function filterRestaurantsList() {
+            const val = document.getElementById('restaurant-search').value.toLowerCase();
+            const box = document.getElementById('restaurant-suggestions');
+            
+            if (!val) {
+                box.style.display = 'none';
+                return;
+            }
+            
+            const matches = availableRestaurants.filter(r => r.toLowerCase().includes(val)).slice(0, 8);
+            if (matches.length === 0) {
+                box.style.display = 'none';
+                return;
+            }
+            
+            box.innerHTML = '';
+            matches.forEach(res => {
+                const row = document.createElement('div');
+                row.className = 'suggestion-row';
+                row.textContent = res;
+                row.onclick = () => {
+                    document.getElementById('restaurant-search').value = res;
+                    box.style.display = 'none';
+                    fetchCompetitorRecommendations(res);
+                };
+                box.appendChild(row);
+            });
+            box.style.display = 'block';
+        }
+
+        // Dynamic Simulation Engine (ML Predictions + B2B Advice)
+        async function runSimulation() {
+            const scoreEl = document.getElementById('pred-score');
+            const labelEl = document.getElementById('pred-label');
+            const starsEl = document.getElementById('pred-stars');
+            const insightsBox = document.getElementById('insights-container');
+            
+            scoreEl.textContent = '...';
+            labelEl.textContent = 'Running ML...';
+            labelEl.classList.add('pulse-text');
+
+            const payload = {
+                average_cost: parseFloat(document.getElementById('cost').value) || 0,
+                price_range: parseInt(document.getElementById('price-range').value) || 1,
+                votes: parseInt(document.getElementById('votes').value) || 0,
+                table_booking: optionStates['table-booking'],
+                online_delivery: optionStates['online-delivery'],
+                delivering_now: optionStates['delivering-now'],
+                cuisines: selectedCuisines
+            };
+
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    const rating = result.rating;
+                    scoreEl.textContent = rating.toFixed(1);
+                    labelEl.classList.remove('pulse-text');
+                    
+                    let label = 'Average Concept';
+                    let stars = '';
+                    
+                    if (rating >= 4.3) {
+                        label = 'Exceptional Success';
+                    } else if (rating >= 3.7) {
+                        label = 'High Performer';
+                    } else if (rating >= 2.8) {
+                        label = 'Moderate Concept';
+                    } else {
+                        label = 'High Risk Concept';
+                    }
+                    
+                    labelEl.textContent = label;
+                    
+                    for (let i = 1; i <= 5; i++) {
+                        stars += i <= Math.round(rating) ? '★' : '☆';
+                    }
+                    starsEl.textContent = stars;
+
+                    // Generate Dynamic B2B Business Optimization advice
+                    generateB2BAdvice(payload, rating, insightsBox);
+                }
+            } catch (err) {
+                console.error(err);
+                scoreEl.textContent = 'ERR';
+                labelEl.textContent = 'Connection Fail';
+            }
+        }
+
+        function generateB2BAdvice(payload, rating, container) {
+            container.innerHTML = '';
+            
+            let adviceList = [];
+            
+            // Advice 1: Online delivery optimization
+            if (payload.online_delivery === 0) {
+                adviceList.push({
+                    type: 'alert',
+                    icon: '🚀',
+                    text: '<b>Deliveries Opportunity:</b> Your concept does not offer Online Delivery. Enabling online orders increases ratings by up to <b>0.78 stars</b> on average for mid-range spots.'
+                });
+            } else if (payload.online_delivery === 1 && payload.delivering_now === 0) {
+                adviceList.push({
+                    type: 'tip',
+                    icon: '⚡',
+                    text: '<b>Instant Delivery:</b> You offer online delivery but have not activated "Delivering Now" (express/local dispatcher). Enabling this increases visibility in nearby searches.'
+                });
+            }
+            
+            // Advice 2: Premium services vs table booking
+            if (payload.price_range >= 3 && payload.table_booking === 0) {
+                adviceList.push({
+                    type: 'alert',
+                    icon: '🍷',
+                    text: '<b>Booking Gap:</b> Premium (Tier 3/4) dining concepts without table reservations see a significant drop in customer satisfaction. Activating bookings adds class.'
+                });
+            }
+            
+            // Advice 3: Cuisines menu suggestions
+            if (payload.cuisines.length === 0) {
+                adviceList.push({
+                    type: 'info',
+                    icon: '🥗',
+                    text: '<b>Menu Strategy:</b> Add at least one cuisine (e.g., Italian, Fast Food) to let our ML engine optimize your competitive recipes.'
+                });
+            } else {
+                const cuisinesText = payload.cuisines.join(', ').toLowerCase();
+                if (cuisinesText.includes('fast food') || cuisinesText.includes('cafe')) {
+                    adviceList.push({
+                        type: 'info',
+                        icon: '☕',
+                        text: '<b>High Saturation Notice:</b> Cafes and Fast Food are highly competitive in Delhi. Emphasize home delivery services and active promotions to capture margins.'
+                    });
+                }
+                if (cuisinesText.includes('north indian') && payload.average_cost > 1000) {
+                    adviceList.push({
+                        type: 'tip',
+                        icon: '🍲',
+                        text: '<b>Premium Indian Concept:</b> North Indian cuisine at high average costs (₹1000+) requires luxury table bookings to justify pricing tiers to consumers.'
+                    });
+                }
+            }
+            
+            // Advice 4: Success review scale
+            if (rating >= 4.0) {
+                adviceList.push({
+                    type: 'tip',
+                    icon: '🎉',
+                    text: '<b>Market Ready:</b> Excellent simulation score! Your model features represent a highly viable restaurant concept.'
+                });
+            } else {
+                adviceList.push({
+                    type: 'info',
+                    icon: '📈',
+                    text: '<b>Score Optimization:</b> Try increasing customer votes (reach) or offering delivery conveniences to see predicted rating trends go up.'
+                });
+            }
+
+            // Append cards
+            adviceList.forEach(item => {
+                const card = document.createElement('div');
+                card.className = `insight-card ${item.type}`;
+                card.innerHTML = `
+                    <span style="font-size: 1.1rem;">${item.icon}</span>
+                    <div>${item.text}</div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        // Competitor recommender fetch
+        async function fetchCompetitorRecommendations(name) {
+            const container = document.getElementById('recommendations-container');
+            const qTitle = document.getElementById('query-title');
+            const qDesc = document.getElementById('query-desc');
+            
+            container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 3rem;" class="pulse-text">Calculating cosine similarity metrics...</div>';
+            
+            try {
+                const response = await fetch(`/api/recommend?name=${encodeURIComponent(name)}`);
+                const data = await response.json();
+                
+                if (data.success && data.recommendations.length > 0) {
+                    qTitle.textContent = data.query_restaurant;
+                    qDesc.textContent = `Comparing matching menu profiles across the Zomato database:`;
+                    
+                    container.innerHTML = '';
+                    data.recommendations.forEach(rec => {
+                        const card = document.createElement('div');
+                        card.className = 'competitor-card';
+                        
+                        let rateClass = '';
+                        if (rec.rating < 3.7) rateClass = 'mid';
+                        
+                        card.innerHTML = `
+                            <div>
+                                <h4 class="comp-title">${rec.name}</h4>
+                                <p class="comp-cuisines">${rec.cuisines}</p>
+                                <div class="comp-badges">
+                                    <span class="badge">${rec.city}</span>
+                                    <span class="badge">Price Tier ${rec.price_range}</span>
+                                </div>
+                            </div>
+                            <div class="comp-stats">
+                                <div class="comp-rating ${rateClass}">${rec.rating.toFixed(1)}</div>
+                                <div class="comp-match">${Math.round(rec.similarity * 100)}% Match</div>
+                            </div>
+                        `;
+                        container.appendChild(card);
+                    });
+                } else {
+                    container.innerHTML = `<div style="text-align: center; color: var(--color-rating-low); padding: 3rem;">Error: ${data.error}</div>`;
+                }
+            } catch (err) {
+                console.error(err);
+                container.innerHTML = '<div style="text-align: center; color: var(--color-rating-low); padding: 3rem;">Failed to fetch recommendations.</div>';
+            }
+        }
+
+        // Initialize Map
+        function initMap() {
+            // New Delhi center
+            map = L.map('map', { preferCanvas: true }).setView([28.6139, 77.2090], 11);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+            
+            loadCoordinates();
+        }
+
+        // Load coordinate markers
+        async function loadCoordinates() {
+            try {
+                const response = await fetch('/api/clusters');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const colors = {
+                        0: '#e11d48', // Premium
+                        1: '#ea580c', // Outlier
+                        2: '#2563eb', // Commercial
+                        3: '#16a34a', // Suburbs
+                        4: '#7c3aed'  // Budget
+                    };
+                    
+                    data.restaurants.forEach(rest => {
+                        const color = colors[rest.Cluster] || '#7f8c8d';
+                        
+                        const circle = L.circleMarker([rest.Latitude, rest.Longitude], {
+                            radius: 4,
+                            fillColor: color,
+                            color: '#ffffff',
+                            weight: 0.3,
+                            opacity: 0.9,
+                            fillOpacity: 0.6
+                        });
+                        
+                        circle.bindPopup(`
+                            <h3>${rest['Restaurant Name']}</h3>
+                            <p><b>Cuisines:</b> ${rest.Cuisines}</p>
+                            <p><b>Rating:</b> ⭐ ${rest['Aggregate rating'].toFixed(1)}</p>
+                            <p><b>Cost for Two:</b> ₹${rest['Average Cost for two']}</p>
+                            <p><b>Geospatial Cluster:</b> Segment ${rest.Cluster}</p>
+                        `);
+                        
+                        // Reference for focus
+                        circle.clusterId = rest.Cluster;
+                        mapMarkers.push(circle);
+                        circle.addTo(map);
+                    });
+                }
+            } catch (err) {
+                console.error("Map plot failure: ", err);
+            }
+        }
+
+        // Focus map view on selected cluster circles
+        function focusCluster(clusterId) {
+            const filtered = mapMarkers.filter(m => m.clusterId === clusterId);
+            if (filtered.length === 0) return;
+            
+            // Calculate bounding box bounds
+            const group = new L.featureGroup(filtered);
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+    </script>
+</body>
+</html>
