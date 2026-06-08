@@ -25,12 +25,26 @@ if not models_exist:
     missing = [f for f in model_files if not os.path.exists(model_path(f))]
     raise RuntimeError(f"Serialized model files not found: {missing}. Run 'python serialize_models.py' first.")
 
+print(f"BASE_DIR: {BASE_DIR}")
+print(f"Model files exist: {[os.path.exists(model_path(f)) for f in model_files]}")
 print("Loading serialized machine learning models...")
-model = joblib.load(model_path('model.joblib'))
-scaler = joblib.load(model_path('scaler.joblib'))
-recommender_data = joblib.load(model_path('recommender.joblib'))
-clusters_data = joblib.load(model_path('clusters.joblib'))
-metadata = joblib.load(model_path('metadata.joblib'))
+
+try:
+    model = joblib.load(model_path('model.joblib'))
+    print("✓ model.joblib loaded")
+    scaler = joblib.load(model_path('scaler.joblib'))
+    print("✓ scaler.joblib loaded")
+    recommender_data = joblib.load(model_path('recommender.joblib'))
+    print("✓ recommender.joblib loaded")
+    clusters_data = joblib.load(model_path('clusters.joblib'))
+    print("✓ clusters.joblib loaded")
+    metadata = joblib.load(model_path('metadata.joblib'))
+    print("✓ metadata.joblib loaded")
+except Exception as e:
+    import traceback
+    print(f"ERROR loading models: {e}")
+    traceback.print_exc()
+    raise
 
 # Extract assets
 rec_df = recommender_data['rec_df']
@@ -45,6 +59,15 @@ print("All ML models and metadata loaded successfully.")
 @app.route('/')
 def home():
     return render_template('index.html')
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Simple health check endpoint to verify models are loaded"""
+    return jsonify({
+        'status': 'healthy',
+        'models_loaded': True,
+        'message': 'All systems operational'
+    }), 200
 
 @app.route('/api/metadata', methods=['GET'])
 def get_metadata():
