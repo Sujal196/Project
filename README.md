@@ -52,28 +52,6 @@ Imagine you want to start a new food business, like an Italian cafe. Instead of 
 ```
 
 ---
-
-## 🚀 How to Run the Web Application
-
-### Prerequisite Libraries
-Ensure you have the required Python libraries installed:
-```bash
-pip install pandas numpy scikit-learn flask joblib matplotlib seaborn
-```
-
-### Step 1: Serialize and Export the ML Models
-Run the training script to pre-train and export the ML models:
-```bash
-python serialize_models.py
-```
-*This generates `model.joblib`, `scaler.joblib`, `recommender.joblib`, `clusters.joblib`, and `metadata.joblib` in your workspace.*
-
-### Step 2: Start the Web Server
-Launch the Flask backend server:
-```bash
-python app.py
-```
-
-### Step 3: Open the Portal
+## Open the Portal
 Open your web browser and navigate to:
-👉 **[http://127.0.0.1:5000](http://127.0.0.1:5000)**
+👉 **https://project-ak1qqgc30-sujal-sahus-projects.vercel.app/**
